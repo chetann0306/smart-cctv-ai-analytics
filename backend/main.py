@@ -9,7 +9,6 @@ from backend.app.database import init_db, SessionLocal, IncidentLog
 
 app = FastAPI(title="Smart CCTV AI Analytics Platform")
 
-# Standardize global cross-origin rules for local microservices
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,20 +17,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load lightweight AI model weights and initialize database tables
 model = YOLO("yolov8n.pt")
 init_db()
 
+# Define the explicit security watch list items to monitor
+TARGET_CLASSES = ["cell phone", "laptop", "backpack", "book"]
+
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Smart CCTV AI Analytics Engine with Persistence Layer Active"}
+    return {"status": "online", "filters": TARGET_CLASSES}
 
-# REST Endpoint to fetch historical logs when the dashboard client mounts
 @app.get("/api/incidents")
 def get_incident_history():
     db = SessionLocal()
     try:
-        # Fetch the last 50 historical items recorded across webcam instances
         logs = db.query(IncidentLog).order_by(IncidentLog.id.desc()).limit(50).all()
         return [
             {
@@ -61,7 +60,6 @@ async def websocket_endpoint(websocket: WebSocket):
             boxes = results[0].boxes
             detected_items = []
             
-            # Start database transaction block
             db = SessionLocal()
             
             for box in boxes:
@@ -69,13 +67,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 confidence = float(box.conf[0])
                 class_name = model.names[class_id]
                 
-                if confidence > 0.5:
+                # Check confidence AND enforce target watch list containment
+                if confidence > 0.5 and class_name in TARGET_CLASSES:
                     detected_items.append({
                         "object": class_name,
                         "confidence": round(confidence * 100, 2)
                     })
                     
-                    # Commit this specific frame detection metric directly to SQLite
                     new_incident = IncidentLog(
                         location="Camera Feed 01",
                         object_detected=class_name,
@@ -84,7 +82,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     db.add(new_incident)
             
             if detected_items:
-                db.commit() # Save transaction records securely
+                db.commit()
                 
                 alert_payload = {
                     "event": "DETECTION_ALERT",
