@@ -1,122 +1,150 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState, useEffect } from 'react';
+import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock } from 'lucide-react';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [activeDetections, setActiveDetections] = useState([]);
+
+  useEffect(() => {
+    // Connect to the FastAPI WebSocket alert pipeline
+    const ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+
+    ws.onopen = () => {
+      setIsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.event === 'DETECTION_ALERT') {
+        setActiveDetections(data.detections);
+        
+        // Append to historical tracking stream list (keep last 10 entries)
+        setAlerts((prev) => [
+          {
+            id: Date.now(),
+            time: new Date().toLocaleTimeString(),
+            location: data.location,
+            items: data.detections
+          },
+          ...prev.slice(0, 9)
+        ]);
+      }
+    };
+
+    ws.onclose = () => {
+      setIsConnected(false);
+      setActiveDetections([]);
+    };
+
+    return () => ws.close();
+  }, []);
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
+      {/* Top Navigation / Status Header */}
+      <header className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
+        <div className="flex items-center gap-3">
+          <Shield className="w-8 h-8 text-indigo-500 animate-pulse" />
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">AURA AI</h1>
+            <p className="text-xs text-slate-400">Smart CCTV Analytics SaaS</p>
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+        
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+          isConnected 
+            ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/30' 
+            : 'bg-rose-950/50 text-rose-400 border-rose-500/30'
+        }`}>
+          {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+          {isConnected ? 'AI ENGINE ONLINE' : 'AI ENGINE OFFLINE'}
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      </header>
 
-      <div className="ticks"></div>
+      {/* Main Grid Architecture */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left/Center Columns: Video Stream Proxy Placeholder & Live Feed */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden aspect-video flex flex-col justify-center items-center shadow-2xl">
+            <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded text-xs font-semibold flex items-center gap-2 tracking-wider text-slate-300">
+              <Eye className="w-3.5 h-3.5 text-indigo-400" /> CAMERA_FEED_01 (LIVE)
+            </div>
+            
+            {/* Real-time Object Overlay Simulation Indicators */}
+            {activeDetections.length > 0 ? (
+              <div className="text-center p-6 bg-rose-500/10 border border-rose-500/20 rounded-lg max-w-sm backdrop-blur-sm">
+                <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-2 animate-bounce" />
+                <h3 className="text-lg font-bold text-rose-400">Threat Flags Flagged</h3>
+                <p className="text-xs text-slate-400 mt-1">YOLO processing pipeline broadcasting dynamic coordinates...</p>
+              </div>
+            ) : (
+              <div className="text-center text-slate-500">
+                <Activity className="w-12 h-12 mx-auto mb-2 text-slate-700 animate-pulse" />
+                <p className="text-sm font-medium">Monitoring active stream infrastructure</p>
+                <p className="text-xs text-slate-600">No telemetry anomalies flagged</p>
+              </div>
+            )}
+          </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          {/* Core Current Active Detections Container */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Live Object Telemetry</h2>
+            {activeDetections.length > 0 ? (
+              <div className="flex flex-wrap gap-3">
+                {activeDetections.map((det, index) => (
+                  <div key={index} className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-4">
+                    <span className="text-sm font-bold text-indigo-400 capitalize">{det.object}</span>
+                    <span className="text-xs font-mono px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700">
+                      {det.confidence}% Conf
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">Awaiting computer vision analysis parameters...</p>
+            )}
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {/* Right Column: Historical Real-Time Alert Ticker */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col h-[550px] lg:h-auto">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-slate-500" /> Incident Alert Ledger
+          </h2>
+          
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+            {alerts.length > 0 ? (
+              alerts.map((alert) => (
+                <div key={alert.id} className="bg-slate-950 border-l-2 border-l-rose-500 border-y border-r border-slate-800 rounded-r-lg p-3 shadow-md transition-all duration-200">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-mono text-slate-500">{alert.time}</span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-rose-500/10 text-rose-400 rounded border border-rose-500/20">
+                      Critical
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-300 mb-2">{alert.location}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {alert.items.map((it, idx) => (
+                      <span key={idx} className="text-[11px] font-medium bg-slate-900 text-indigo-300 px-2 py-0.5 rounded border border-slate-800">
+                        {it.object} ({Math.round(it.confidence)}%)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center text-slate-600 p-4">
+                <Shield className="w-8 h-8 mb-2 text-slate-800" />
+                <p className="text-xs italic">System secure. No real-time alerts indexed inside this session ledger.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
 }
-
-export default App
