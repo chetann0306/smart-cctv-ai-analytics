@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock, Volume2, VolumeX } from 'lucide-react';
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [activeDetections, setActiveDetections] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+  
+  // Create a mutable reference to hold our audio stream object
+  const audioRef = useRef(new Audio('/alert.ogg'));
 
   useEffect(() => {
-    // Connect to the FastAPI WebSocket alert pipeline
+    // Configure audio loop characteristics
+    audioRef.current.loop = false;
+    
     const ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
 
     ws.onopen = () => {
@@ -20,7 +26,11 @@ export default function App() {
       if (data.event === 'DETECTION_ALERT') {
         setActiveDetections(data.detections);
         
-        // Append to historical tracking stream list (keep last 10 entries)
+        // Play the alert sound if audio is unmuted and threat items exist
+        if (data.detections.length > 0 && !isMuted) {
+          audioRef.current.play().catch(err => console.log("Audio playback blocked until user interacts with document:", err));
+        }
+        
         setAlerts((prev) => [
           {
             id: Date.now(),
@@ -39,7 +49,7 @@ export default function App() {
     };
 
     return () => ws.close();
-  }, []);
+  }, [isMuted]); // Re-bind effect safely if mute toggles
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
@@ -53,27 +63,41 @@ export default function App() {
           </div>
         </div>
         
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
-          isConnected 
-            ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/30' 
-            : 'bg-rose-950/50 text-rose-400 border-rose-500/30'
-        }`}>
-          {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-          {isConnected ? 'AI ENGINE ONLINE' : 'AI ENGINE OFFLINE'}
+        <div className="flex items-center gap-3">
+          {/* Mute/Unmute UI Control Button */}
+          <button 
+            onClick={() => setIsMuted(!isMuted)}
+            className={`p-2 rounded-lg border transition-all duration-200 cursor-pointer ${
+              isMuted 
+                ? 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200' 
+                : 'bg-indigo-950/40 text-indigo-400 border-indigo-500/30 hover:bg-indigo-950/60'
+            }`}
+            title={isMuted ? "Unmute Audio" : "Mute Audio"}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+            isConnected 
+              ? 'bg-emerald-950/50 text-emerald-400 border-emerald-500/30' 
+              : 'bg-rose-950/50 text-rose-400 border-rose-500/30'
+          }`}>
+            {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+            {isConnected ? 'AI ENGINE ONLINE' : 'AI ENGINE OFFLINE'}
+          </div>
         </div>
       </header>
 
       {/* Main Grid Architecture */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left/Center Columns: Video Stream Proxy Placeholder & Live Feed */}
+        {/* Left/Center Columns: Video Stream Proxy Placeholder */}
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden aspect-video flex flex-col justify-center items-center shadow-2xl">
             <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded text-xs font-semibold flex items-center gap-2 tracking-wider text-slate-300">
               <Eye className="w-3.5 h-3.5 text-indigo-400" /> CAMERA_FEED_01 (LIVE)
             </div>
             
-            {/* Real-time Object Overlay Simulation Indicators */}
             {activeDetections.length > 0 ? (
               <div className="text-center p-6 bg-rose-500/10 border border-rose-500/20 rounded-lg max-w-sm backdrop-blur-sm">
                 <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-2 animate-bounce" />
