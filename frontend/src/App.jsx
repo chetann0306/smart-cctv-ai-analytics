@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock, Volume2, VolumeX, Filter } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock, Volume2, VolumeX, Filter, BarChart3, TrendingUp, ShieldAlert } from 'lucide-react';
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -54,8 +54,43 @@ export default function App() {
     return () => ws.close();
   }, [isMuted]);
 
+  // Compute live real-time metrics using optimized React hooks
+  const sessionStats = useMemo(() => {
+    if (alerts.length === 0) return { total: 0, peakConf: 0, dominant: 'None' };
+
+    let totalItemsCount = 0;
+    let maxConfidence = 0;
+    const frequencyMap = {};
+
+    alerts.forEach(alert => {
+      alert.items.forEach(item => {
+        totalItemsCount++;
+        if (item.confidence > maxConfidence) {
+          maxConfidence = item.confidence;
+        }
+        frequencyMap[item.object] = (frequencyMap[item.object] || 0) + 1;
+      });
+    });
+
+    let topObject = 'None';
+    let maxFrequency = 0;
+    Object.entries(frequencyMap).forEach(([obj, freq]) => {
+      if (freq > maxFrequency) {
+        maxFrequency = freq;
+        topObject = obj;
+      }
+    });
+
+    return {
+      total: totalItemsCount,
+      peakConf: maxConfidence,
+      dominant: topObject
+    };
+  }, [alerts]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
+      {/* Top Navigation / Status Header */}
       <header className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
         <div className="flex items-center gap-3">
           <Shield className="w-8 h-8 text-indigo-500 animate-pulse" />
@@ -84,6 +119,40 @@ export default function App() {
         </div>
       </header>
 
+      {/* Live Session Analytics Cards */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg">
+            <BarChart3 className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Indexed Hits</p>
+            <p className="text-2xl font-bold font-mono text-slate-100">{sessionStats.total}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Peak AI Confidence</p>
+            <p className="text-2xl font-bold font-mono text-slate-100">{sessionStats.peakConf}%</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Primary Target Class</p>
+            <p className="text-2xl font-bold text-slate-100 capitalize">{sessionStats.dominant}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Main Grid Architecture */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden aspect-video flex flex-col justify-center items-center shadow-2xl">
@@ -94,7 +163,7 @@ export default function App() {
             {activeDetections.length > 0 ? (
               <div className="text-center p-6 bg-rose-500/10 border border-rose-500/20 rounded-lg max-w-sm">
                 <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-2 animate-bounce" />
-                <h3 className="text-lg font-bold text-rose-400">Target Target Flagged</h3>
+                <h3 className="text-lg font-bold text-rose-400">Target Flagged</h3>
                 <p className="text-xs text-slate-400 mt-1">YOLO processing pipeline broadcasting dynamic coordinates...</p>
               </div>
             ) : (
@@ -106,7 +175,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Core Current Active Detections Container & Filter Badges */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
               <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Live Object Telemetry</h2>
