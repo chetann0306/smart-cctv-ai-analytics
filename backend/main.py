@@ -1,13 +1,15 @@
 import asyncio
 import cv2
+import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 from backend.app.connection_manager import manager
+from backend.app.database import init_db, SessionLocal, IncidentLog
 
 app = FastAPI(title="Smart CCTV AI Analytics Platform")
 
-# Allow Frontend dashboard to connect smoothly without CORS blocks
+# Standardize global cross-origin rules for local microservices
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,61 +18,85 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load our lightweight model
+# Load lightweight AI model weights and initialize database tables
 model = YOLO("yolov8n.pt")
+init_db()
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Smart CCTV AI Analytics Engine Active"}
+    return {"status": "online", "message": "Smart CCTV AI Analytics Engine with Persistence Layer Active"}
+
+# REST Endpoint to fetch historical logs when the dashboard client mounts
+@app.get("/api/incidents")
+def get_incident_history():
+    db = SessionLocal()
+    try:
+        # Fetch the last 50 historical items recorded across webcam instances
+        logs = db.query(IncidentLog).order_by(IncidentLog.id.desc()).limit(50).all()
+        return [
+            {
+                "id": log.id,
+                "time": log.timestamp.strftime("%I:%M:%S %p"),
+                "location": log.location,
+                "items": [{"object": log.object_detected, "confidence": log.confidence}]
+            }
+            for log in logs
+        ]
+    finally:
+        db.close()
 
 @app.websocket("/ws/alerts")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
-    
-    # Initialize the camera stream (0 = webcam)
     cap = cv2.VideoCapture(0)
     
     try:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                await asyncio.sleep(0.03)  # Yield control back to loop if frame drops
+                await asyncio.sleep(0.03)
                 continue
 
-            # Run YOLO on the frame
             results = model(frame, verbose=False)
-            
-            # Extract detected classes
-            # COCO dataset: Class 0 is 'person'. Perfect for testing unauthorized entry!
             boxes = results[0].boxes
             detected_items = []
+            
+            # Start database transaction block
+            db = SessionLocal()
             
             for box in boxes:
                 class_id = int(box.cls[0])
                 confidence = float(box.conf[0])
                 class_name = model.names[class_id]
                 
-                # Filter for high-confidence detections
                 if confidence > 0.5:
                     detected_items.append({
                         "object": class_name,
                         "confidence": round(confidence * 100, 2)
                     })
-
-            # If an anomaly or target object is found, broadcast the alert immediately
+                    
+                    # Commit this specific frame detection metric directly to SQLite
+                    new_incident = IncidentLog(
+                        location="Camera Feed 01",
+                        object_detected=class_name,
+                        confidence=round(confidence * 100, 2)
+                    )
+                    db.add(new_incident)
+            
             if detected_items:
+                db.commit() # Save transaction records securely
+                
                 alert_payload = {
                     "event": "DETECTION_ALERT",
                     "location": "Camera Feed 01",
                     "detections": detected_items
                 }
                 await manager.broadcast_alert(alert_payload)
-
-            # Control frame-rate execution (~30 FPS processing)
+            
+            db.close()
             await asyncio.sleep(0.03)
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     finally:
         cap.release()
-        print("Video capture resource released safely.")
