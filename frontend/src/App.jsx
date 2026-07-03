@@ -7,8 +7,8 @@ export default function App() {
   const [activeDetections, setActiveDetections] = useState([]);
   const [isMuted, setIsMuted] = useState(false);
   
-  // Custom Emergency Real Target Pools
-  const availableFilters = ["fire", "smoke"];
+  // Set filter toggle array specifically to capitalized target match labels
+  const availableFilters = ["Fire"];
   const [activeFilters, setActiveFilters] = useState(availableFilters);
   
   const audioRef = useRef(new Audio('/alert.ogg'));
@@ -207,7 +207,7 @@ export default function App() {
               <p className="text-xs text-slate-500 mt-0.5">Toggle hazard fields to control live emergency tracking vectors.</p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-1 gap-3">
               {availableFilters.map((filter) => {
                 const checked = activeFilters.includes(filter);
                 return (

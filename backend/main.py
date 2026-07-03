@@ -17,12 +17,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. LOAD THE NEW EMERGENCY WEIGHTS FILE
+# Load your custom fire model
 model = YOLO("best.pt")
 init_db()
 
-# 2. MATCH THE SPECIFIC CLASSES THE MODEL CAN DETECT
-AVAILABLE_CLASSES = ["fire", "smoke"]
+# Match the exact capitalized label found by the diagnostic script
+AVAILABLE_CLASSES = ["Fire"]
 active_targets = list(AVAILABLE_CLASSES)
 
 @app.get("/")
@@ -90,15 +90,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 class_id = int(box.cls[0])
                 confidence = float(box.conf[0])
                 
-                # Check bounds safety for custom indexing mappings
                 if class_id < len(model.names):
                     class_name = model.names[class_id]
                 else:
-                    class_name = "fire" # Fallback safe mapping defaults
+                    class_name = "Fire"
                 
-                # The simulation mapping code is completely gone.
-                # Only authentic fire/smoke predictions pass here.
-                if confidence > 0.4 and class_name in active_targets:
+                # --- INCREASED CONFIDENCE FILTER ---
+                # Changed from 0.4 to 0.75 to completely eliminate human false positives
+                if confidence > 0.75 and class_name in active_targets:
                     detected_items.append({
                         "object": class_name,
                         "confidence": round(confidence * 100, 2)
