@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock, Volume2, VolumeX, Filter, BarChart3, TrendingUp, ShieldAlert } from 'lucide-react';
+import { Shield, Eye, AlertTriangle, Activity, Wifi, WifiOff, Clock, Volume2, VolumeX, Filter, BarChart3, TrendingUp, ShieldAlert, Trash2 } from 'lucide-react';
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [alerts, setAlerts] = useState([]);
   const [activeDetections, setActiveDetections] = useState([]);
   const [isMuted, setIsMuted] = useState(false);
-  const targetFilters = ["cell phone", "laptop", "backpack", "book"];
+  
+  // Dynamic filter state management
+  const availableFilters = ["cell phone", "laptop", "backpack", "book"];
+  const [activeFilters, setActiveFilters] = useState(availableFilters);
   
   const audioRef = useRef(new Audio('/alert.ogg'));
 
@@ -54,7 +57,38 @@ export default function App() {
     return () => ws.close();
   }, [isMuted]);
 
-  // Compute live real-time metrics using optimized React hooks
+  // Handler to toggle an active AI tracking class live
+  const handleFilterToggle = (filterItem) => {
+    let updatedFilters;
+    if (activeFilters.includes(filterItem)) {
+      updatedFilters = activeFilters.filter(item => item !== filterItem);
+    } else {
+      updatedFilters = [...activeFilters, filterItem];
+    }
+    
+    setActiveFilters(updatedFilters);
+
+    // Broadcast the updated array layout right down to the FastAPI server pipeline
+    fetch('http://127.0.0.1:8000/api/filters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedFilters)
+    }).catch(err => console.error("Error syncing custom filter updates:", err));
+  };
+
+  // Handler to safely clear database storage out via the UI
+  const handleClearLogs = () => {
+    if (window.confirm("Are you sure you want to permanently clear out the persistent database history ledger?")) {
+      fetch('http://127.0.0.1:8000/api/incidents', {
+        method: 'DELETE'
+      })
+      .then(() => {
+        setAlerts([]); // Wipe our local array mirror immediately
+      })
+      .catch(err => console.error("Error clearing backend persistent storage:", err));
+    }
+  };
+
   const sessionStats = useMemo(() => {
     if (alerts.length === 0) return { total: 0, peakConf: 0, dominant: 'None' };
 
@@ -81,16 +115,11 @@ export default function App() {
       }
     });
 
-    return {
-      total: totalItemsCount,
-      peakConf: maxConfidence,
-      dominant: topObject
-    };
+    return { total: totalItemsCount, peakConf: maxConfidence, dominant: topObject };
   }, [alerts]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-      {/* Top Navigation / Status Header */}
       <header className="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
         <div className="flex items-center gap-3">
           <Shield className="w-8 h-8 text-indigo-500 animate-pulse" />
@@ -119,7 +148,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Live Session Analytics Cards */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
           <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg">
@@ -152,7 +180,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* Main Grid Architecture */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden aspect-video flex flex-col justify-center items-center shadow-2xl">
@@ -175,42 +202,69 @@ export default function App() {
             )}
           </div>
 
+          {/* Interactive Toggle Checkbox Matrix Panel */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
-              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Live Object Telemetry</h2>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                  <Filter className="w-3 h-3" /> ACTIVE WATCHLIST:
-                </span>
-                {targetFilters.map((filter) => (
-                  <span key={filter} className="text-[10px] uppercase tracking-wider font-mono px-2 py-0.5 bg-slate-950 text-indigo-400 border border-slate-800 rounded">
-                    {filter}
-                  </span>
-                ))}
-              </div>
+            <div className="pb-2 border-b border-slate-800">
+              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Filter className="w-4 h-4 text-indigo-400" /> Live Target Filtering Console
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Toggle filters live to customize tracking pipelines instantly.</p>
             </div>
 
-            {activeDetections.length > 0 ? (
-              <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {availableFilters.map((filter) => {
+                const checked = activeFilters.includes(filter);
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => handleFilterToggle(filter)}
+                    className={`flex items-center justify-between p-3 rounded-lg border text-xs font-mono tracking-wide uppercase transition-all duration-200 cursor-pointer ${
+                      checked
+                        ? 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300 shadow-md shadow-indigo-950/20'
+                        : 'bg-slate-950 border-slate-800/80 text-slate-500 hover:border-slate-700'
+                    }`}
+                  >
+                    <span>{filter}</span>
+                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all ${
+                      checked ? 'bg-indigo-500 border-indigo-400' : 'border-slate-700'
+                    }`}>
+                      {checked && <div className="w-1.5 h-1.5 bg-white rounded-sm" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeDetections.length > 0 && (
+              <div className="pt-2 border-t border-slate-800/60 flex flex-wrap gap-2">
                 {activeDetections.map((det, index) => (
-                  <div key={index} className="bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 flex items-center gap-4">
-                    <span className="text-sm font-bold text-indigo-400 capitalize">{det.object}</span>
-                    <span className="text-xs font-mono px-2 py-0.5 bg-slate-800 text-slate-300 rounded">
-                      {det.confidence}% Conf
+                  <div key={index} className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 flex items-center gap-3">
+                    <span className="text-xs font-bold text-indigo-400 capitalize">{det.object}</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded">
+                      {det.confidence}%
                     </span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-slate-500 italic">Awaiting targeted watch list vector detections...</p>
             )}
           </div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col h-[550px] lg:h-auto">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-slate-500" /> Persistent Incident Ledger
-          </h2>
+          {/* Ledger Title with Interactive Flush Trigger Button */}
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-800/60">
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Clock className="w-4 h-4 text-slate-500" /> Incident Ledger
+            </h2>
+            {alerts.length > 0 && (
+              <button
+                onClick={handleClearLogs}
+                className="flex items-center gap-1.5 text-xs font-medium text-rose-400/80 hover:text-rose-400 bg-rose-950/30 hover:bg-rose-950/60 border border-rose-900/40 px-2 py-1 rounded transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Clear History
+              </button>
+            )}
+          </div>
           
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 h-[450px]">
             {alerts.length > 0 ? (
