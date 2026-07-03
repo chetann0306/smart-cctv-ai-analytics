@@ -161,3 +161,9 @@ __marimo__/
 *.jpeg
 *.png
 research-models/videos/
+# Ignore Roboflow and Custom Training Datasets
+*Detection*/
+*detection*/
+*.jpg
+*.png
+*.jpeg
