@@ -17,11 +17,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-model = YOLO("yolov8n.pt")
+# 1. LOAD THE NEW EMERGENCY WEIGHTS FILE
+model = YOLO("best.pt")
 init_db()
 
-# Crisis Response Target Pool configuration
-AVAILABLE_CLASSES = ["fire", "smoke", "accident", "cell phone"]
+# 2. MATCH THE SPECIFIC CLASSES THE MODEL CAN DETECT
+AVAILABLE_CLASSES = ["fire", "smoke"]
 active_targets = list(AVAILABLE_CLASSES)
 
 @app.get("/")
@@ -88,15 +89,16 @@ async def websocket_endpoint(websocket: WebSocket):
             for box in boxes:
                 class_id = int(box.cls[0])
                 confidence = float(box.conf[0])
-                class_name = model.names[class_id]
                 
-                # --- LIVE DEMO SIMULATION MAPPER ---
-                # Intercept cell phone detections and map them to 'fire' for testing
-                if class_name == "cell phone":
-                    class_name = "fire"
-                # -------------------------------------
+                # Check bounds safety for custom indexing mappings
+                if class_id < len(model.names):
+                    class_name = model.names[class_id]
+                else:
+                    class_name = "fire" # Fallback safe mapping defaults
                 
-                if confidence > 0.5 and class_name in active_targets:
+                # The simulation mapping code is completely gone.
+                # Only authentic fire/smoke predictions pass here.
+                if confidence > 0.4 and class_name in active_targets:
                     detected_items.append({
                         "object": class_name,
                         "confidence": round(confidence * 100, 2)
