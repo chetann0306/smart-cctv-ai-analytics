@@ -20,9 +20,8 @@ app.add_middleware(
 model = YOLO("yolov8n.pt")
 init_db()
 
-# 1. Available pool of target classes to monitor
-AVAILABLE_CLASSES = ["cell phone", "laptop", "backpack", "book"]
-# Start with everything active by default
+# Crisis Response Target Pool configuration
+AVAILABLE_CLASSES = ["fire", "smoke", "accident", "cell phone"]
 active_targets = list(AVAILABLE_CLASSES)
 
 @app.get("/")
@@ -46,15 +45,12 @@ def get_incident_history():
     finally:
         db.close()
 
-# 2. REST Endpoint to dynamically update target filters
 @app.post("/api/filters")
 def update_filters(selected_filters: list[str]):
     global active_targets
-    # Ensure we only accept filters that are part of our available pool
     active_targets = [f for f in selected_filters if f in AVAILABLE_CLASSES]
     return {"status": "updated", "active_filters": active_targets}
 
-# 3. REST Endpoint to truncate/clear the database logs
 @app.delete("/api/incidents")
 def clear_incident_history():
     db = SessionLocal()
@@ -94,7 +90,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 confidence = float(box.conf[0])
                 class_name = model.names[class_id]
                 
-                # Check confidence AND match against dynamically modified active_targets list
+                # --- LIVE DEMO SIMULATION MAPPER ---
+                # Intercept cell phone detections and map them to 'fire' for testing
+                if class_name == "cell phone":
+                    class_name = "fire"
+                # -------------------------------------
+                
                 if confidence > 0.5 and class_name in active_targets:
                     detected_items.append({
                         "object": class_name,
