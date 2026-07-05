@@ -7,7 +7,9 @@ export default function App() {
   const [activeDetections, setActiveDetections] = useState([]);
   const [isMuted, setIsMuted] = useState(false);
   
-  // Set filter toggle array specifically to capitalized target match labels
+  // Create a reactive state placeholder container to hold incoming visual live video streams
+  const [liveFrame, setLiveFrame] = useState(null);
+  
   const availableFilters = ["Fire"];
   const [activeFilters, setActiveFilters] = useState(availableFilters);
   
@@ -33,25 +35,33 @@ export default function App() {
       if (data.event === 'DETECTION_ALERT') {
         setActiveDetections(data.detections);
         
-        if (data.detections.length > 0 && !isMuted) {
-          audioRef.current.play().catch((e) => {});
+        // Cache incoming streaming frame variables into active layout memory
+        if (data.frame) {
+          setLiveFrame(data.frame);
         }
         
-        setAlerts((prev) => [
-          {
-            id: Date.now(),
-            time: new Date().toLocaleTimeString(),
-            location: data.location,
-            items: data.detections
-          },
-          ...prev.slice(0, 49)
-        ]);
+        if (data.detections.length > 0) {
+          if (!isMuted) {
+            audioRef.current.play().catch((e) => {});
+          }
+          
+          setAlerts((prev) => [
+            {
+              id: Date.now(),
+              time: new Date().toLocaleTimeString(),
+              location: data.location,
+              items: data.detections
+            },
+            ...prev.slice(0, 49)
+          ]);
+        }
       }
     };
 
     ws.onclose = () => {
       setIsConnected(false);
       setActiveDetections([]);
+      setLiveFrame(null);
     };
 
     return () => ws.close();
@@ -179,22 +189,29 @@ export default function App() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
+          {/* VIDEO FRAME RENDER INTERCEPT HOOK BLOCK */}
           <div className="relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden aspect-video flex flex-col justify-center items-center shadow-2xl">
-            <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded text-xs font-semibold flex items-center gap-2 text-slate-300">
+            <div className="absolute top-4 left-4 z-10 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded text-xs font-semibold flex items-center gap-2 text-slate-300">
               <Eye className="w-3.5 h-3.5 text-rose-400" /> DISPATCH_FEED_01 (LIVE)
             </div>
             
-            {activeDetections.length > 0 ? (
-              <div className="text-center p-6 bg-red-500/10 border border-red-500/20 rounded-lg max-w-sm">
-                <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-2 animate-bounce" />
-                <h3 className="text-lg font-bold text-red-400">CRITICAL THREAT FLAGGED</h3>
-                <p className="text-xs text-slate-400 mt-1">Telemetry parsing pipeline identifying active local hazard matrix...</p>
-              </div>
+            {liveFrame ? (
+              <img 
+                src={liveFrame} 
+                alt="Live AI Threat Video Stream" 
+                className="w-full h-full object-cover select-none"
+              />
             ) : (
               <div className="text-center text-slate-500">
                 <Activity className="w-12 h-12 mx-auto mb-2 text-slate-700 animate-pulse" />
-                <p className="text-sm font-medium">Monitoring active hazard matrix</p>
-                <p className="text-xs text-slate-600">No telemetry anomalies flagged</p>
+                <p className="text-sm font-medium">Initializing camera stream matrix...</p>
+                <p className="text-xs text-slate-600">Ensure backend engine runtime is active</p>
+              </div>
+            )}
+
+            {activeDetections.length > 0 && (
+              <div className="absolute bottom-4 right-4 bg-red-500/90 border border-red-400 text-white font-bold text-xs tracking-wider px-3 py-1.5 rounded animate-pulse flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" /> HAZARD DETECTED
               </div>
             )}
           </div>

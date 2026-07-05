@@ -1,6 +1,7 @@
 import asyncio
 import cv2
 import datetime
+import base64
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
@@ -17,11 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load your custom fire model
 model = YOLO("best.pt")
 init_db()
 
-# Match the exact capitalized label found by the diagnostic script
 AVAILABLE_CLASSES = ["Fire"]
 active_targets = list(AVAILABLE_CLASSES)
 
@@ -77,7 +76,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                await asyncio.sleep(0.03)
+                await asyncio.sleep(0.01)
                 continue
 
             results = model(frame, verbose=False)
@@ -95,13 +94,23 @@ async def websocket_endpoint(websocket: WebSocket):
                 else:
                     class_name = "Fire"
                 
-                # --- INCREASED CONFIDENCE FILTER ---
-                # Changed from 0.4 to 0.75 to completely eliminate human false positives
                 if confidence > 0.75 and class_name in active_targets:
                     detected_items.append({
                         "object": class_name,
                         "confidence": round(confidence * 100, 2)
                     })
+                    
+                    # DRAW DETECTED BOUNDING BOXES ON THE LIVE FRAME DIRECTLY
+                    # Extract bounding box corner pixel coordinates
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    
+                    # Draw a vibrant red outer boundary tracking rectangle box shape
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                    
+                    # Render an overlaid text ribbon label reflecting the threat name & score
+                    label = f"{class_name} {round(confidence * 100)}%"
+                    cv2.putText(frame, label, (x1, max(y1 - 10, 20)), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                     
                     new_incident = IncidentLog(
                         location="Camera Feed 01",
@@ -112,16 +121,25 @@ async def websocket_endpoint(websocket: WebSocket):
             
             if detected_items:
                 db.commit()
-                
-                alert_payload = {
-                    "event": "DETECTION_ALERT",
-                    "location": "Camera Feed 01",
-                    "detections": detected_items
-                }
-                await manager.broadcast_alert(alert_payload)
-            
             db.close()
-            await asyncio.sleep(0.03)
+            
+            # STREAM THE FRAME BACK TO THE FRONTEND
+            # Compress live pixel maps into standard, lightweight JPEG strings
+            _, buffer = cv2.imencode('.jpg', frame)
+            # Encode frame image bytes into a robust web-transmittable string format
+            base64_frame = base64.b64encode(buffer).decode('utf-8')
+            
+            # Synchronize payload bundle down to client sockets
+            alert_payload = {
+                "event": "DETECTION_ALERT",
+                "location": "Camera Feed 01",
+                "detections": detected_items,
+                "frame": f"data:image/jpeg;base64,{base64_frame}"
+            }
+            await manager.broadcast_alert(alert_payload)
+            
+            # Lower sleep pacing to maximize smooth visual refresh fluid flow rates
+            await asyncio.sleep(0.01)
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
