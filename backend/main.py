@@ -6,7 +6,7 @@ import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
-from sqlalchemy import text  # 🧠 Added for secure raw SQL processing
+from sqlalchemy import text
 from backend.app.connection_manager import manager
 from backend.app.database import init_db, SessionLocal, IncidentLog
 

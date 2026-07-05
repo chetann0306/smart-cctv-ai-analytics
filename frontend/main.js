@@ -13,12 +13,12 @@ function startBackend() {
   const pythonExecutable = path.join(rootPath, 'venv', 'Scripts', 'python.exe');
 
   // Check if port 8000 is already active before trying to launch a new process
-  const req = http.get('http://127.0.0.1:8000/', (res) => {
-    console.log("[Electron Core]: Backend engine already running. Skipping spawn.");
+  const checkRequest = http.get('http://127.0.0.1:8000/', (res) => {
+    console.log("[Electron Core]: Backend engine already running on port 8000. Skipping duplicate spawn.");
   });
 
-  req.on('error', () => {
-    console.log("[Electron Core]: Backend port free. Launching Python AI Engine...");
+  checkRequest.on('error', () => {
+    console.log("[Electron Core]: Port 8000 free. Spawning background Python AI Engine...");
     pythonBackendProcess = exec(`"${pythonExecutable}" -m uvicorn backend.main:app --port 8000`, { cwd: rootPath });
 
     pythonBackendProcess.stdout.on('data', (data) => console.log(`[Python Engine]: ${data}`));
@@ -38,11 +38,13 @@ function createWindow() {
     }
   });
 
+  // Start the background engine securely
   startBackend();
 
   if (isDev) {
+    // Wait 3 seconds on cold launch for servers to clear ports
     setTimeout(() => {
-      mainWindow.loadURL('http://localhost:5173');
+      if (mainWindow) mainWindow.loadURL('http://localhost:5173');
     }, 3000);
   } else {
     mainWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}`);
@@ -55,6 +57,7 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
+// Hard taskkill sequence to cleanly turn off camera hardware and clear memory on close
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     if (pythonBackendProcess) {
