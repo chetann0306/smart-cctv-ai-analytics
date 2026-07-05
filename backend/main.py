@@ -35,6 +35,11 @@ except Exception as e:
 finally:
     db_setup.close()
 
+# 🎥 GLOBAL CAMERA INITIALIZATION (Prevents hardware locking on refresh)
+global_camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+global_camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+global_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
 AVAILABLE_CLASSES = ["Fire"]
 active_targets = list(AVAILABLE_CLASSES)
 
@@ -81,14 +86,10 @@ def clear_incident_history():
 @app.websocket("/ws/alerts")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     
     try:
-        while cap.isOpened():
-            ret, frame = cap.read()
+        while global_camera.isOpened():
+            ret, frame = global_camera.read()
             if not ret:
                 await asyncio.sleep(0.01)
                 continue
@@ -147,5 +148,8 @@ async def websocket_endpoint(websocket: WebSocket):
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    finally:
-        cap.release()
+
+# Ensure hardware release if application is completely destroyed
+@app.on_event("shutdown")
+def shutdown_event():
+    global_camera.release()

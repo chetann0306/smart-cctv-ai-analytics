@@ -12,7 +12,6 @@ function startBackend() {
   const rootPath = path.join(__dirname, '..'); 
   const pythonExecutable = path.join(rootPath, 'venv', 'Scripts', 'python.exe');
 
-  // Check if port 8000 is already active before trying to launch a new process
   const checkRequest = http.get('http://127.0.0.1:8000/', (res) => {
     console.log("[Electron Core]: Backend engine already running on port 8000. Skipping duplicate spawn.");
   });
@@ -38,11 +37,9 @@ function createWindow() {
     }
   });
 
-  // Start the background engine securely
   startBackend();
 
   if (isDev) {
-    // Wait 3 seconds on cold launch for servers to clear ports
     setTimeout(() => {
       if (mainWindow) mainWindow.loadURL('http://localhost:5173');
     }, 3000);
@@ -57,7 +54,6 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-// Hard taskkill sequence to cleanly turn off camera hardware and clear memory on close
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     if (pythonBackendProcess) {
