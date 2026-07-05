@@ -2,9 +2,11 @@ import asyncio
 import cv2
 import datetime
 import base64
+import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
+from sqlalchemy import text  # 🧠 Added for secure raw SQL processing
 from backend.app.connection_manager import manager
 from backend.app.database import init_db, SessionLocal, IncidentLog
 
@@ -18,8 +20,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize neural engine and run structural migration steps
 model = YOLO("best.pt")
 init_db()
+
+# Configure SQLite WAL mode directly on application startup cleanly using text() blocks
+db_setup = SessionLocal()
+try:
+    db_setup.execute(text("PRAGMA journal_mode=WAL;"))
+    db_setup.execute(text("PRAGMA synchronous=NORMAL;"))
+    db_setup.commit()
+except Exception as e:
+    print(f"⚠️ [WAL Init Warning]: {e}")
+finally:
+    db_setup.close()
 
 AVAILABLE_CLASSES = ["Fire"]
 active_targets = list(AVAILABLE_CLASSES)
@@ -84,52 +98,44 @@ async def websocket_endpoint(websocket: WebSocket):
             detected_items = []
             
             db = SessionLocal()
-            
-            for box in boxes:
-                class_id = int(box.cls[0])
-                confidence = float(box.conf[0])
+            try:
+                for box in boxes:
+                    class_id = int(box.cls[0])
+                    confidence = float(box.conf[0])
+                    
+                    class_name = model.names[class_id] if class_id < len(model.names) else "Fire"
+                    
+                    if confidence > 0.75 and class_name in active_targets:
+                        detected_items.append({
+                            "object": class_name,
+                            "confidence": round(confidence * 100, 2)
+                        })
+                        
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                        
+                        label = f"{class_name} {round(confidence * 100)}%"
+                        cv2.putText(frame, label, (x1, max(y1 - 10, 20)), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                        
+                        new_incident = IncidentLog(
+                            location="Camera Feed 01",
+                            object_detected=class_name,
+                            confidence=round(confidence * 100, 2)
+                        )
+                        db.add(new_incident)
                 
-                if class_id < len(model.names):
-                    class_name = model.names[class_id]
-                else:
-                    class_name = "Fire"
-                
-                if confidence > 0.75 and class_name in active_targets:
-                    detected_items.append({
-                        "object": class_name,
-                        "confidence": round(confidence * 100, 2)
-                    })
-                    
-                    # DRAW DETECTED BOUNDING BOXES ON THE LIVE FRAME DIRECTLY
-                    # Extract bounding box corner pixel coordinates
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    
-                    # Draw a vibrant red outer boundary tracking rectangle box shape
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                    
-                    # Render an overlaid text ribbon label reflecting the threat name & score
-                    label = f"{class_name} {round(confidence * 100)}%"
-                    cv2.putText(frame, label, (x1, max(y1 - 10, 20)), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                    
-                    new_incident = IncidentLog(
-                        location="Camera Feed 01",
-                        object_detected=class_name,
-                        confidence=round(confidence * 100, 2)
-                    )
-                    db.add(new_incident)
+                if detected_items:
+                    db.commit()
+            except Exception as write_err:
+                print(f"⚠️ [Database Write Warning]: {write_err}")
+                db.rollback()
+            finally:
+                db.close()
             
-            if detected_items:
-                db.commit()
-            db.close()
-            
-            # STREAM THE FRAME BACK TO THE FRONTEND
-            # Compress live pixel maps into standard, lightweight JPEG strings
             _, buffer = cv2.imencode('.jpg', frame)
-            # Encode frame image bytes into a robust web-transmittable string format
             base64_frame = base64.b64encode(buffer).decode('utf-8')
             
-            # Synchronize payload bundle down to client sockets
             alert_payload = {
                 "event": "DETECTION_ALERT",
                 "location": "Camera Feed 01",
@@ -137,8 +143,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 "frame": f"data:image/jpeg;base64,{base64_frame}"
             }
             await manager.broadcast_alert(alert_payload)
-            
-            # Lower sleep pacing to maximize smooth visual refresh fluid flow rates
             await asyncio.sleep(0.01)
             
     except WebSocketDisconnect:
