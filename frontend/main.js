@@ -5,6 +5,7 @@ const { exec } = require('child_process');
 let mainWindow;
 let pythonBackendProcess;
 
+// Check if running in development mode
 const isDev = !app.isPackaged;
 
 function createWindow() {
@@ -23,14 +24,15 @@ function createWindow() {
   const rootPath = path.join(__dirname, '..'); 
   const pythonExecutable = path.join(rootPath, 'venv', 'Scripts', 'python.exe');
 
-  // 🚀 Start your Python backend using clean, explicit parameters
+  // 🚀 Start your Python backend process in the background using absolute windows mapping
   pythonBackendProcess = exec(`"${pythonExecutable}" -m uvicorn backend.main:app --port 8000`, { cwd: rootPath });
 
+  // Pipe internal logging directly into your terminal environment
   pythonBackendProcess.stdout.on('data', (data) => console.log(`[Python Engine]: ${data}`));
   pythonBackendProcess.stderr.on('data', (data) => console.error(`[Python Err]: ${data}`));
 
   if (isDev) {
-    // ⏳ Allow 3 seconds for backend dependencies to initialize smoothly
+    // ⏳ Wait 3 seconds for backend dependencies to initialize smoothly
     setTimeout(() => {
       mainWindow.loadURL('http://localhost:5173');
     }, 3000);
@@ -45,12 +47,19 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
+// 🛡️ HARD TREE-KILL EXCLUSION FOR WINDOWS OS PROCESS LEAKS
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     if (pythonBackendProcess) {
-      console.log("Shutting down background Python AI Engine...");
-      pythonBackendProcess.kill();
+      console.log("Purging background AI Engine process tree securely...");
+      
+      // Forcefully kills the parent shell process AND all running children (uvicorn, opencv, python)
+      exec(`taskkill /PID ${pythonBackendProcess.pid} /T /F`, (err) => {
+        if (err) console.error("Process clean up warning:", err);
+        app.quit();
+      });
+    } else {
+      app.quit();
     }
-    app.quit();
   }
 });
