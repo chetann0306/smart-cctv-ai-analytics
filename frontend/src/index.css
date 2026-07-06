@@ -1,8 +1,297 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg-obsidian: #040407;
+  --panel-dark: rgba(10, 10, 15, 0.85);
+  --cyber-cyan: #06b6d4;
+  --cyber-cyan-glow: rgba(6, 182, 212, 0.25);
+  --hazard-red: #ef4444;
+  --hazard-red-glow: rgba(239, 68, 68, 0.4);
+  --text-muted: #71717a;
+}
 
 body {
   margin: 0;
-  background-color: #020617; /* Slate-950 */
-  color: #f8fafc;
-  font-family: system-ui, -apple-system, sans-serif;
+  padding: 0;
+  background-color: var(--bg-obsidian);
+  color: #e4e4e7;
+  font-family: 'Share Tech Mono', monospace;
+  overflow: hidden;
+  background-image: linear-gradient(rgba(18, 18, 24, 0.4) 1px, transparent 1px),
+                    linear-gradient(90px, rgba(18, 18, 24, 0.4) 1px, transparent 1px);
+  background-size: 30px 30px;
 }
+
+.tactical-hud-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* HEADER STYLE */
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--cyber-cyan);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 20px var(--cyber-cyan-glow);
+}
+
+.cyber-glitch-logo {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 4px;
+  text-shadow: 0 0 10px var(--cyber-cyan);
+}
+
+.brand-group .subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  display: block;
+  margin-top: 2px;
+}
+
+.status-badge-group {
+  display: flex;
+  gap: 16px;
+}
+
+.metric-pill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.metric-pill .label { color: var(--text-muted); margin-right: 6px;}
+.text-cyan { color: var(--cyber-cyan); text-shadow: 0 0 8px var(--cyber-cyan); }
+.text-red { color: var(--hazard-red); text-shadow: 0 0 8px var(--hazard-red); }
+
+/* MAIN HUD LAYOUT CONTENT */
+.hud-grid {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* PANELS DECORATION STRUCT */
+.border-cyber {
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  background: var(--panel-dark);
+  box-shadow: inset 0 0 15px rgba(6, 182, 212, 0.05);
+}
+
+.border-hazard-pulse {
+  border: 1px solid var(--hazard-red);
+  background: rgba(20, 5, 5, 0.9);
+  box-shadow: 0 0 25px var(--hazard-red-glow), inset 0 0 20px rgba(239, 68, 68, 0.1);
+  animation: panel-pulse 2s infinite ease-in-out;
+}
+
+.video-feed-panel {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-radius: 4px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.scanner-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--cyber-cyan);
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  box-shadow: 0 0 8px var(--cyber-cyan);
+}
+
+.hazard-banner {
+  background: var(--hazard-red);
+  color: #fff;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* VIDEO LAYER EXCLUSIONS */
+.video-viewport {
+  flex: 1;
+  background: #000;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.live-frame {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.viewport-placeholder {
+  text-align: center;
+  color: var(--cyber-cyan);
+}
+
+.radar-circle {
+  width: 60px;
+  height: 60px;
+  border: 2px solid var(--cyber-cyan);
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: radar-ping 1.5s infinite linear;
+}
+
+/* SIDE PANEL MANAGEMENT INTERFACES */
+.side-control-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.control-panel {
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.control-panel .panel-body {
+  padding: 16px;
+}
+
+.ledger-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.ledger-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 6px;
+}
+
+.ledger-scroll-area::-webkit-scrollbar { width: 4px; }
+.ledger-scroll-area::-webkit-scrollbar-thumb { background: rgba(6, 182, 212, 0.3); }
+
+/* CONTROLS ELEMENTS */
+.hud-btn {
+  width: 100%;
+  background: transparent;
+  font-family: 'Share Tech Mono', monospace;
+  padding: 10px;
+  border: 1px solid var(--hazard-red);
+  color: var(--hazard-red);
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  margin-top: 12px;
+}
+
+.btn-danger-glow:hover {
+  background: var(--hazard-red);
+  color: white;
+  box-shadow: 0 0 15px var(--hazard-red-glow);
+}
+
+.cyber-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cyber-checkbox-label input { display: none; }
+.custom-box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--cyber-cyan);
+  background: rgba(6, 182, 212, 0.1);
+  display: inline-block;
+  position: relative;
+}
+
+.cyber-checkbox-label input:checked + .custom-box::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px; width: 6px; height: 6px;
+  background: var(--cyber-cyan);
+  box-shadow: 0 0 6px var(--cyber-cyan);
+}
+
+/* LEDGER DATA CARDS */
+.ledger-card {
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 3px solid var(--text-muted);
+  padding: 12px;
+}
+
+.ledger-card.alert-triggered {
+  border-left-color: var(--hazard-red);
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.badge-danger { color: var(--hazard-red); font-weight: bold; }
+.log-time { color: var(--text-muted); }
+.card-meta { font-size: 13px; color: #a1a1aa; line-height: 1.5; }
+.card-meta .lbl { color: var(--cyber-cyan); margin-right: 4px; }
+.empty-ledger { text-align: center; color: var(--text-muted); padding-top: 4px; font-size: 13px; }
+
+/* HUD SCIFI DECORATIONS OVERLAYS */
+.hud-overlay-corner {
+  position: absolute; width: 16px; height: 16px; border: 2px solid var(--cyber-cyan); z-index: 10; pointer-events: none;
+}
+.top-left { top: 12px; left: 12px; border-right: none; border-bottom: none; }
+.top-right { top: 12px; right: 12px; border-left: none; border-bottom: none; }
+.bottom-left { bottom: 12px; left: 12px; border-right: none; border-top: none; }
+.bottom-right { bottom: 12px; right: 12px; border-left: none; border-top: none; }
+
+.hud-crosshair {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 40px; height: 40px; border: 1px dashed rgba(6, 182, 212, 0.2); border-radius: 50%; pointer-events: none;
+}
+
+/* ANIMATION FRAMEWORKS */
+@keyframes radar-ping {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+@keyframes panel-pulse {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.6); }
+  50% { border-color: rgba(239, 68, 68, 1); }
+}
+.animate-flash { animation: alert-flash 1s infinite steps(2); }
+@keyframes alert-flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
